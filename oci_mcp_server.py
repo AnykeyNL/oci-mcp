@@ -146,6 +146,7 @@ def list_compute_instances(compartment_ocid: Optional[str] = None,
     ).data:
         if lifecycle_state and inst.lifecycle_state != lifecycle_state:
             continue
+        image = compute.get_image(inst.image_id).data
         items.append({
             "id": inst.id,
             "display_name": inst.display_name,
@@ -162,6 +163,9 @@ def list_compute_instances(compartment_ocid: Optional[str] = None,
                     "gpus": getattr(inst.shape_config, "gpus", None),
                     "gpu_description": getattr(inst.shape_config, "gpu_description", None),
                 }),
+            "image": image.display_name,
+            "operating_system": image.operating_system,
+            "operating_system_version": image.operating_system_version,
             "lifecycle_state": inst.lifecycle_state,
             "time_created": inst.time_created.isoformat() if inst.time_created else None,
             "compartment_id": inst.compartment_id,
@@ -178,8 +182,9 @@ def get_instance_details(instance_id: str) -> Dict[str, Any]:
     """
     compute = oci_manager.get_client("compute")
     vcn = oci_manager.get_client("network")
-
     inst = compute.get_instance(instance_id).data
+    image = compute.get_image(inst.image_id).data
+    print ("image: ", image)
     details: Dict[str, Any] = {
         "id": inst.id,
         "display_name": inst.display_name,
@@ -197,6 +202,9 @@ def get_instance_details(instance_id: str) -> Dict[str, Any]:
                     "gpus": getattr(inst.shape_config, "gpus", None),
                     "gpu_description": getattr(inst.shape_config, "gpu_description", None),
                 }),
+        "image": image.display_name,
+        "operating_system": image.operating_system,
+        "image_operating_system_version": image.operating_system_version,
         "lifecycle_state": inst.lifecycle_state,
         "time_created": inst.time_created.isoformat() if inst.time_created else None,
         "metadata": inst.metadata,
