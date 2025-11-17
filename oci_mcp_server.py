@@ -13,20 +13,23 @@ from __future__ import annotations
 import os
 import json
 import logging
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
 # MCP (official Python SDK)
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 
 # OCI SDK
 import oci
 from oci.util import to_dict
 
 # ---------- Logging & env ----------
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("oci-mcp")
@@ -116,7 +119,13 @@ def _to_clean_dict(x: Any) -> Any:
 
 # ---------- MCP server ----------
 
-mcp = FastMCP("oci-mcp-server")
+MCP_TOKEN = os.getenv("MCP_TOKEN", "change_me_super_secret")
+verifier = StaticTokenVerifier(
+    tokens={MCP_TOKEN: {"client_id": "oci-mcp", "scopes": ["read"]}}
+)
+
+mcp = FastMCP("oci-mcp-server", auth=verifier)
+
 
 @mcp.tool()
 def list_compute_instances(compartment_ocid: Optional[str] = None,
@@ -364,8 +373,7 @@ def oci_analysis_prompt() -> str:
 
 
 def main() -> None:
-    # Start stdio transport
-    mcp.run()
+    mcp.run(transport="http", port=8000)
 
 
 if __name__ == "__main__":
