@@ -376,7 +376,7 @@ def get_tenancy_cost_summary(start_time_iso: Optional[str] = None,
         granularity=granularity,
         query_type="COST",
         group_by=["service"],
-        forecast=False,
+        # forecast=oci.usage_api.models.Forecast(),
     )
     resp = usage.request_summarized_usages(request_summarized_usages_details=details)
     rows = [to_dict(x) for x in resp.data.items] if getattr(resp.data, "items", None) else []
