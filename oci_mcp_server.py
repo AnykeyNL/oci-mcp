@@ -124,7 +124,8 @@ verifier = StaticTokenVerifier(
     tokens={MCP_TOKEN: {"client_id": "oci-mcp", "scopes": ["read"]}}
 )
 
-mcp = FastMCP("oci-mcp-server", auth=verifier)
+# mcp = FastMCP("oci-mcp-server", auth=verifier)
+mcp = FastMCP("oci-mcp-server")
 
 
 @mcp.tool()
@@ -406,7 +407,7 @@ def oci_analysis_prompt() -> str:
 
 
 def main() -> None:
-    mcp.run(transport="http", port=8000)
+    mcp.run(transport="http", port=8000, path="/ocimcp")
 
 
 if __name__ == "__main__":
