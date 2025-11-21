@@ -99,6 +99,8 @@ class OCIManager:
                 return oci.usage_api.UsageapiClient(self.config, **kwargs)  # type: ignore[attr-defined]
             except Exception as e:
                 raise RuntimeError("Usage API client not available; check OCI SDK version.") from e
+        if service in ("resource_search", "search"):
+            return oci.resource_search.ResourceSearchClient(self.config, **kwargs)
 
         raise ValueError(f"Unknown OCI service: {service}")
 
@@ -173,6 +175,287 @@ def list_compute_instances(compartment_ocid: Optional[str] = None,
             "availability_domain": getattr(inst, "availability_domain", None),
         })
     return items
+
+@mcp.tool()
+def search_oci_resources(resource_type: str) -> List[Dict[str, Any]]:
+    """Search/Find any OCI resources by just specifying the resource type.
+    Args:
+        resource_type: The resource type to query for. see list below. The name after the colon is the resource type.
+        - Application Performance Monitoring: apmdomain
+        - Analytics Cloud: analyticsinstance
+        - API Gateway: apideployment
+        - API Gateway: apigateway
+        - API Gateway: apigatewayapi
+        - API Gateway: apigatewaycertificate
+        - Application Dependency Management: admknowledgebase
+        - Application Dependency Management: admvulnerabilityaudit
+        - Autonomous Recovery Service: ProtectedDatabase
+        - Autonomous Recovery Service: ProtectionPolicy
+        - Autonomous Recovery Service: RecoveryServiceSubnet
+        - Bastion: bastion
+        - Big Data Service: bigdataservice
+        - Big Data Service: bigdataserviceapikey
+        - Big Data Service: bigdataservicemetastoreconfig
+        - Big Data Service: bigdataservicelakehouseconfig
+        - Block Volume: bootvolume
+        - Block Volume: bootvolumebackup
+        - Block Volume: bootvolumereplica
+        - Block Volume: volume
+        - Block Volume: volumebackup
+        - Block Volume: volumebackuppolicy
+        - Block Volume: volumegroup
+        - Block Volume: volumegroupbackup
+        - Block Volume: volumereplica
+        - Blockchain Platform: blockchainplatforms
+        - Budgets: budget
+        - Certificates: cabundle
+        - Certificates: cabundleassociation
+        - Certificates: certificate
+        - Certificates: certificateassociation
+        - Certificates: certificateauthority
+        - Certificates: certificateauthorityassociation
+        - Cloud Guard: cloudguarddetectorrecipe
+        - Cloud Guard: cloudguardmanagedlist
+        - Cloud Guard: cloudguardresponderrecipe
+        - Cloud Guard: cloudguardtarget
+        - Cluster Placement Groups: clusterplacementgroup
+        - Compute: autoscalingconfiguration
+        - Compute: clusternetwork
+        - Compute: computecapacityreservation
+        - Compute: consolehistory
+        - Compute: dedicatedvmhost
+        - Compute: image
+        - Compute: instance
+        - Compute: instanceconfiguration
+        - Compute: instancepool
+        - Compute Cloud@Customer: ccc-infrastructure
+        - Compute Cloud@Customer: ccc-upgrade-schedule
+        - Connector Hub: serviceconnector
+        - Container Instances: container
+        - Container Instances: containerinstance
+        - Content Management: oceinstance
+        - Console Dashboards: ConsoleDashboard
+        - Console Dashboards: ConsoleDashboardGroup
+        - Data Catalog: datacatalog
+        - Data Catalog: datacatalogprivateendpoint
+        - Data Catalog: datacatalogmetastore
+        - Data Flow: application
+        - Data Flow: run
+        - Data Integration: disworkspace
+        - Data Labeling: datalabelingdataset
+        - Data Safe: datasafeprivateendpoint
+        - Data Science: datasciencejob
+        - Data Science: datasciencejobrun
+        - Data Science: datasciencemodel
+        - Data Science: datasciencemodeldeployment
+        - Data Science: datasciencenotebooksession
+        - Data Science: datascienceproject
+        - Database: autonomouscontainerdatabase
+        - Database: autonomousdatabase
+        - Database: autonomousvmcluster
+        - Database: backupdestination
+        - Database: cloudautonomousvmcluster
+        - Database: cloudexadatainfrastructure
+        - Database: cloudvmcluster
+        - Database: database
+        - Database: databasesoftwareimage
+        - Database: dbhome
+        - Database: dbkeystore
+        - Database: dbnode
+        - Database: dbserver
+        - Database: dbsystem
+        - Database: exadatainfrastructure
+        - Database: externalcontainerdatabase
+        - Database: externaldatabaseconnector
+        - Database: externalnoncontainerdatabase
+        - Database: externalpluggabledatabase
+        - Database: pluggabledatabase
+        - Database: vmcluster
+        - Database: vmclusternetwork
+        - Database Management: dbmgmtexternalasm
+        - Database Management: dbmgmtexternalasminstance
+        - Database Management: dbmgmtexternalcluster
+        - Database Management: dbmgmtexternalclusterinstance
+        - Database Management: dbmgmtexternaldbhome
+        - Database Management: dbmgmtexternaldbnode
+        - Database Management: dbmgmtexternaldbsystem
+        - Database Management: dbmgmtexternaldbsystemconnector
+        - Database Management: dbmgmtexternalexadatainfrastructure
+        - Database Management: dbmgmtexternalexadatastorageconnector
+        - Database Management: dbmgmtexternalexadatastoragegrid
+        - Database Management: dbmgmtexternalexadatastorageserver
+        - Database Management: dbmgmtexternallistener
+        - Database Management: dbmgmtexternalmysqldb
+        - Database Management: dbmgmtmysqldbconnector
+        - Database Management: dbmgmtjob
+        - Database Management: dbmgmtmanageddatabase
+        - Database Management: dbmgmtmanageddatabasegroup
+        - Database Management: dbmgmtnamedcredential
+        - Database Management: dbmgmtprivateendpoint
+        - Database Migration: agent
+        - Database Migration: connection
+        - Database Migration: job
+        - Database Migration: migration
+        - Database Tools: databasetoolsconnection
+        - Database Tools: databasetoolsprivateendpoint
+        - DevOps: devopsdeployartifact
+        - DevOps: devopsdeployenvironment
+        - DevOps: devopsdeployment
+        - DevOps: devopsdeploypipeline
+        - DevOps: devopsbuildpipeline
+        - DevOps: devopsbuildpipelinestage
+        - DevOps: devopsdeploystage
+        - DevOps: devopsrepository
+        - DevOps: devopsconnection
+        - DevOps: devopstrigger
+        - DevOps: devopsproject
+        - Digital Assistant: odainstance
+        - Email Delivery: emailsender
+        - Email Delivery: emaildomain
+        - Email Delivery: dkim
+        - Events: eventrule
+        - File Storage: filesystem
+        - File Storage: mounttarget
+        - File Storage with Lustre: lustrefilesystem
+        - Fleet Application Management: famscatalogitem
+        - Fleet Application Management: famscompliancepolicy
+        - Fleet Application Management: famscompliancepolicyrule
+        - Fleet Application Management: famsfleet
+        - Fleet Application Management: famsmaintenancewindow
+        - Fleet Application Management: famspatch
+        - Fleet Application Management: famsplatformconfiguration
+        - Fleet Application Management: famsproperty
+        - Fleet Application Management: famsprovision
+        - Fleet Application Management: famsrunbook
+        - Fleet Application Management: famsschedulerdefinition
+        - Fleet Application Management: famstaskrecord
+        - Full Stack Disaster Recovery: drprotectiongroup
+        - Full Stack Disaster Recovery: drplan
+        - Full Stack Disaster Recovery: drplanexeuction
+        - Functions: functionsapplication
+        - Functions: functionsfunction
+        - Globally Distributed Autonomous AI Database: osddistributedautonomousdb
+        - Globally Distributed Autonomous AI Database: osddistributeddbprivateendpoint
+        - Globally Distributed Exadata Database on Exascale Infrastructure: osddistributeddb
+        - Globally Distributed Exadata Database on Exascale Infrastructure: osddistributeddbprivateendpoint
+        - GoldenGate: goldengatedeployment
+        - GoldenGate: goldengateconnection
+        - IAM: compartment
+        - IAM: group
+        - IAM: identityprovider
+        - IAM: policy
+        - IAM: tagdefault
+        - IAM: tagnamespace
+        - IAM: user
+        - Integration: integrationinstance
+        - Java Management: jmsfleet
+        - Java Management: jmsplugin
+        - Kubernetes Engine: clusterscluster
+        - Kubernetes Engine: clustersvirtualnodepool
+        - Kubernetes Engine: clustersvirtualnode
+        - Load Balancer: loadbalancer
+        - Logging: log
+        - Logging: loggroup
+        - Logging: logsavedsearch
+        - Logging: unifiedagentconfiguration
+        - Management Agent: managementagent
+        - Management Agent: managementagentinstallkey
+        - Media Services (Media Flow): mediaworkflow
+        - Media Services (Media Streams): streamdistributionchannel
+        - Media Services (Media Streams): streampackagingconfig
+        - Media Services (Media Streams): streamcdnconfig
+        - Monitoring: alarm
+        - Networking: byoiprange
+        - Networking: cpe
+        - Networking: crossconnect
+        - Networking: crossconnectgroup
+        - Networking: dhcpoptions
+        - Networking: drg
+        - Networking: internetgateway
+        - Networking: ipsecconnection
+        - Networking: ipv6
+        - Networking: localpeeringgateway
+        - Networking: natgateway
+        - Networking: networksecuritygroup
+        - Networking: publicip
+        - Networking: publicippool
+        - Networking: privateip
+        - Networking: remotepeeringconnection
+        - Networking: routetable
+        - Networking: securitylist
+        - Networking: servicegateway
+        - Networking: subnet
+        - Networking: vcn
+        - Networking: virtualcircuit
+        - Networking: vlan
+        - Networking: vnic
+        - Network Firewall: networkfirewall
+        - Network Firewall: networkfirewallpolicy
+        - NoSQL Database Cloud: nosqltable
+        - Notifications: onssubscription
+        - Notifications: onstopic
+        - Object Storage: bucket
+        - OCI Database with PostgreSQL: postgresqlbackup
+        - OCI Database with PostgreSQL: postgresqlconfiguration
+        - OCI Database with PostgreSQL: postgresqldbsystem
+        - Oracle Cloud Bridge: OcbInventory
+        - Oracle Cloud Bridge: OcbVmAsset
+        - Oracle Cloud Bridge: OcbVmwareVmAsset
+        - OS Management Hub: osmhlifecycleenvironment
+        - OS Management Hub: osmhmanagedinstancegroup
+        - OS Management Hub: osmhmanagementstation
+        - OS Management Hub: osmhprofile
+        - OS Management Hub: osmhscheduledjob
+        - OS Management Hub: osmhsoftwaresource
+        - Process Automation: OpaInstance
+        - Queue: queue
+        - Container Registry: containerimage
+        - Container Registry: containerrepo
+        - Resource Manager: ormconfigsourceprovider
+        - Resource Manager: ormjob
+        - Resource Manager: ormprivateendpoint
+        - Resource Manager: ormstack
+        - Resource Manager: ormtemplate
+        - Search: consolerescourcecollections
+        - Security Zones: securityzonessecurityzone
+        - Security Zones: securityzonessecurityrecipe
+        - Service Limits: quota
+        - Streaming: connectharness
+        - Streaming: stream
+        - Vault: key
+        - Vault: vault
+        - Vault: vaultsecret
+        - Visual Builder: visualbuilderinstance
+        - Visual Builder Studio: vbsinstance
+        - VMware solution: vmwareesxihost
+        - VMware solution: vmwaresddc
+        - Vulnerability Scanning: vsshostscanrecipe
+        - Vulnerability Scanning: vsshostscantarget
+        - Vulnerability Scanning: vsscontainerscanrecipe
+        - Vulnerability Scanning: vsscontainerscantarget
+        - WAF: httpredirect
+        - WAF: waasaddresslist
+        - WAF: waascertificate
+        - WAF: waascustomprotectionrule
+        - WAF: waaspolicy
+        - WebLogic Management: WlmsWlsDomain
+        - Zero Trust Packet Routing: securityattributenamespace
+        - Zero Trust Packet Routing: zprpolicy
+
+    Returns:
+        List of resources with all additional fields.
+    """
+    structured_query = f"query {resource_type} resources return allAdditionalFields"
+    search_client = oci_manager.get_client("resource_search")
+    search_details = oci.resource_search.models.StructuredSearchDetails(
+        query=structured_query,
+        type="Structured"
+    )
+    results = oci.pagination.list_call_get_all_results(
+        search_client.search_resources,
+        search_details
+    ).data
+    return [_to_clean_dict(resource) for resource in results]
 
 
 @mcp.tool()
@@ -271,6 +554,31 @@ def list_autonomous_databases(compartment_ocid: Optional[str] = None) -> List[Di
             "data_storage_size_in_tbs": getattr(adb, "data_storage_size_in_tbs", None),
             "is_auto_scaling_enabled": getattr(adb, "is_auto_scaling_enabled", None),
             "connection_strings": _to_clean_dict(getattr(adb, "connection_strings", {})),
+        })
+    return items
+
+
+@mcp.tool()
+def list_db_systems(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List DB Systems (Bare Metal and Virtual Machine databases) in a compartment (defaults to tenancy)."""
+    comp = compartment_ocid or _default_compartment()
+    assert comp, "No compartment OCID available"
+    db = oci_manager.get_client("database")
+    items = []
+    for dbs in oci.pagination.list_call_get_all_results(
+        db.list_db_systems, compartment_id=comp
+    ).data:
+        items.append({
+            "id": dbs.id,
+            "display_name": dbs.display_name,
+            "lifecycle_state": dbs.lifecycle_state,
+            "shape": dbs.shape,
+            "database_edition": getattr(dbs, "database_edition", None),
+            "hostname": getattr(dbs, "hostname", None),
+            "domain": getattr(dbs, "domain", None),
+            "cpu_core_count": getattr(dbs, "cpu_core_count", None),
+            "node_count": getattr(dbs, "node_count", None),
+            "time_created": dbs.time_created.isoformat() if dbs.time_created else None,
         })
     return items
 
