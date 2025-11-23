@@ -14,7 +14,7 @@ import os
 import json
 import logging
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -101,6 +101,10 @@ class OCIManager:
                 raise RuntimeError("Usage API client not available; check OCI SDK version.") from e
         if service in ("resource_search", "search"):
             return oci.resource_search.ResourceSearchClient(self.config, **kwargs)
+        if service in ("audit", "audit_service"):
+            return oci.audit.AuditClient(self.config, **kwargs)
+        if service in ("logging_search", "log_search", "logging"):
+            return oci.loggingsearch.LogSearchClient(self.config, **kwargs)
 
         raise ValueError(f"Unknown OCI service: {service}")
 
@@ -668,7 +672,7 @@ def get_tenancy_cost_summary(start_time_iso: Optional[str] = None,
         raise RuntimeError("Usage API not available; upgrade OCI SDK and permissions.") from e
 
     if not end_time_iso:
-        end = datetime.utcnow()
+        end = datetime.now(timezone.utc)
     else:
         end = datetime.fromisoformat(end_time_iso.replace("Z",""))
     if not start_time_iso:
@@ -690,6 +694,157 @@ def get_tenancy_cost_summary(start_time_iso: Optional[str] = None,
     rows = [to_dict(x) for x in resp.data.items] if getattr(resp.data, "items", None) else []
     total = sum((r.get("computed_amount", 0) or 0) for r in rows)
     return {"start": start.isoformat()+"Z", "end": end.isoformat()+"Z", "granularity": granularity, "total_computed_amount": total, "items": rows}
+
+
+@mcp.tool()
+def get_resource_audit_events(resource_ocid: str,
+                               days_back: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Get historic actions (audit events) for a specific OCI resource.
+    Only returns write operations: PUT, POST, PATCH, DELETE.
+    Uses OCI Logging Search API to query audit logs.
+    
+    IMPORTANT: The OCI Logging Search API has a maximum time range limit of 14 days.
+    If days_back exceeds 14, it will be automatically capped at 14 days.
+    
+    Args:
+        resource_ocid: The OCID of the resource to query audit events for
+        days_back: Number of days back in history to search (defaults to 14, maximum is 14)
+    Returns:
+        List of audit events with event details (eventTime, eventName, requestAction, principalId, etc.)
+    """
+    try:
+        log_search_client = oci_manager.get_client("logging_search")
+    except Exception as e:
+        raise RuntimeError("Logging Search service not available; check OCI SDK version and permissions.") from e
+
+    # Find the resource's compartment OCID using structured search
+    try:
+        search_client = oci_manager.get_client("resource_search")
+        
+        # Extract resource type from OCID (format: ocid1.<resource_type>.<region>...)
+        # Example: ocid1.instance.oc1.eu-frankfurt-1... -> resource_type = "instance"
+        ocid_parts = resource_ocid.split(".")
+        if len(ocid_parts) < 2:
+            raise ValueError(f"Invalid OCID format: {resource_ocid}")
+        
+        resource_type = ocid_parts[1]  # Second part is the resource type
+        
+        # Search for resources of this type
+        structured_query = f"query {resource_type} resources return allAdditionalFields"
+        search_details = oci.resource_search.models.StructuredSearchDetails(
+            query=structured_query,
+            type="Structured"
+        )
+        search_results = oci.pagination.list_call_get_all_results(
+            search_client.search_resources,
+            search_details
+        ).data
+        
+        # Filter results to find the exact resource by identifier
+        matching_resource = None
+        for result in search_results:
+            resource_data = _to_clean_dict(result)
+            resource_id = resource_data.get("identifier") or resource_data.get("id")
+            if resource_id == resource_ocid:
+                matching_resource = resource_data
+                break
+        
+        if not matching_resource:
+            raise ValueError(f"Resource with OCID {resource_ocid} not found")
+        
+        # Get compartment_id from the matching resource
+        comp = matching_resource.get("compartment_id") or matching_resource.get("compartmentId")
+        
+        if not comp:
+            raise ValueError(f"Could not determine compartment OCID for resource {resource_ocid}")
+        
+        log.info(f"Found resource in compartment {comp}")
+        
+    except Exception as e:
+        raise RuntimeError(f"Failed to find resource {resource_ocid} using structured search: {e}") from e
+
+    # Enforce 14-day maximum limit for OCI Logging Search API
+    MAX_SEARCH_DAYS = 14
+    
+    # Set default to 14 days if not specified, and ensure it never exceeds 14
+    if days_back is None:
+        days_back = MAX_SEARCH_DAYS
+    elif days_back > MAX_SEARCH_DAYS:
+        log.warning(
+            f"Requested days_back ({days_back}) exceeds OCI Logging Search API limit "
+            f"of {MAX_SEARCH_DAYS} days. Capping to {MAX_SEARCH_DAYS} days."
+        )
+        days_back = MAX_SEARCH_DAYS
+    
+    # Calculate start and end times automatically
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days_back)
+    
+    # Build search query to filter by resource OCID and HTTP methods
+    # OCI Logging Search query format: search "compartment_ocid/_Audit" | filter conditions | sort
+    write_methods = ["POST", "PUT", "PATCH", "DELETE"]
+    
+    # Build the action filter: (data.request.action='POST' or data.request.action='PUT' or ...)
+    action_filters = " or ".join([f"data.request.action='{method}'" for method in write_methods])
+    
+    # Construct the search query matching the OCI Logging Search format
+    # Search in compartment audit logs, filter by action type and resource OCID in logContent
+    search_query = f'search "{comp}/_Audit" | ({action_filters}) and (logContent=\'*{resource_ocid}*\') | sort by datetime desc'
+    
+    events = []
+    
+    try:
+        # Create SearchLogsDetails object
+        search_details = oci.loggingsearch.models.SearchLogsDetails(
+            time_start=start,
+            time_end=end,
+            search_query=search_query
+        )
+        
+        # Execute the search using LogSearchClient
+        response = log_search_client.search_logs(search_details)
+        
+        # Process the results
+        if hasattr(response.data, 'results') and response.data.results:
+            for result in response.data.results:
+                if hasattr(result, 'data'):
+                    event_data = _to_clean_dict(result.data)
+                    # Ensure resource_ocid is included
+                    event_data["resource_id"] = resource_ocid
+                    # Extract HTTP method from requestAction if available
+                    request_action = event_data.get("requestAction", "") or event_data.get("request_action", "")
+                    if request_action:
+                        method = request_action.split()[0] if request_action else ""
+                        event_data["http_method"] = method
+                    events.append(event_data)
+        
+    except Exception as e:
+        raise RuntimeError(f"Failed to query audit events for resource {resource_ocid}: {e}") from e
+
+    # Sort by event time (most recent first)
+    def get_event_time(event):
+        time_fields = ["event_time", "eventTime", "time", "timestamp"]
+        for field in time_fields:
+            if field in event:
+                val = event[field]
+                if isinstance(val, datetime):
+                    return val
+                elif isinstance(val, str):
+                    try:
+                        return datetime.fromisoformat(val.replace("Z", "+00:00"))
+                    except:
+                        return datetime.min
+        return datetime.min
+    
+    events.sort(key=get_event_time, reverse=True)
+    
+    # Convert datetime objects to ISO strings for JSON serialization
+    for event in events:
+        for key, val in event.items():
+            if isinstance(val, datetime):
+                event[key] = val.isoformat()
+    
+    return events
 
 
 # ----------- Resources -----------
