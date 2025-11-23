@@ -19,7 +19,8 @@ Basic framework taken from: https://github.com/karthiksuku/oci-mcp
 
 - 📚 Resources: `oci://compartments` etc.
 - 🧠 Prompts: `oci_analysis_prompt`
-- 🖥️ Works with Claude Desktop via stdio transport
+- 🖥️ Suggest to use Cursor with buildin MCP support to test
+
 > Built with the [FastMCP Python SDK](https://gofastmcp.com/) and the [OCI Python SDK](https://oracle-cloud-infrastructure-python-sdk.readthedocs.io).
 
 ## Quick start
