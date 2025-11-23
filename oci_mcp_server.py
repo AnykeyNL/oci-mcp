@@ -181,10 +181,22 @@ def list_compute_instances(compartment_ocid: Optional[str] = None,
     return items
 
 @mcp.tool()
-def search_oci_resources(resource_type: str) -> List[Dict[str, Any]]:
+def search_oci_resources(resource_type: Optional[str] = None,
+                         compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
     """Search/Find any OCI resources by just specifying the resource type.
+    Can search for ALL resources or filter by specific resource type and/or compartment. If you are looking for any type of resource,
+    then just do not specify the resource_type. The default is to search for all resources. Only specify the resource_type if the user
+    asked for a specific type of resource.
+
     Args:
-        resource_type: The resource type to query for. see list below. The name after the colon is the resource type.
+        resource_type: The resource type to query for (optional). If not specified, uses "all" to find ALL resources.
+                       The name after the colon is the resource type. See list below.
+        compartment_ocid: Optional Compartment OCID to filter resources by compartment.
+                          When provided, only resources in the specified compartment will be returned.
+    
+    Note: Use resource_type="all" (or omit resource_type) to find ALL resources across all types.
+    
+    Supported resource types (the name after the colon is the resource_type value):
         - Application Performance Monitoring: apmdomain
         - Analytics Cloud: analyticsinstance
         - API Gateway: apideployment
@@ -449,7 +461,23 @@ def search_oci_resources(resource_type: str) -> List[Dict[str, Any]]:
     Returns:
         List of resources with all additional fields.
     """
-    structured_query = f"query {resource_type} resources return allAdditionalFields"
+    # Use "all" if resource_type is not specified
+    if resource_type is None or len(resource_type) < 3:
+        resource_type = "all"
+    
+    # Build the query string
+    if resource_type == "all":
+        if compartment_ocid:
+            structured_query = f"query all resources where compartmentId = '{compartment_ocid}'"
+        else:
+            structured_query = "query all resources"
+    else:
+        if compartment_ocid:
+            structured_query = f"query {resource_type} resources where compartmentId = '{compartment_ocid}' return allAdditionalFields"
+        else:
+            structured_query = f"query {resource_type} resources return allAdditionalFields"
+    print ("resource_type: ", resource_type)
+    print ("structured_query: ", structured_query)
     search_client = oci_manager.get_client("resource_search")
     search_details = oci.resource_search.models.StructuredSearchDetails(
         query=structured_query,
