@@ -566,66 +566,66 @@ def instance_action(instance_id: str, action: str) -> Dict[str, Any]:
     return {"status": resp.status, "headers": dict(resp.headers)}
 
 
-@mcp.tool()
-def list_autonomous_databases(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
-    """List Autonomous Databases in a compartment (defaults to tenancy)."""
-    comp = compartment_ocid or _default_compartment()
-    assert comp, "No compartment OCID available"
-    db = oci_manager.get_client("database")
-    items = []
-    for adb in oci.pagination.list_call_get_all_results(
-        db.list_autonomous_databases, compartment_id=comp
-    ).data:
-        items.append({
-            "id": adb.id,
-            "db_name": adb.db_name,
-            "display_name": adb.display_name,
-            "lifecycle_state": adb.lifecycle_state,
-            "db_workload": adb.db_workload,
-            "cpu_core_count": getattr(adb, "cpu_core_count", None),
-            "data_storage_size_in_tbs": getattr(adb, "data_storage_size_in_tbs", None),
-            "is_auto_scaling_enabled": getattr(adb, "is_auto_scaling_enabled", None),
-            "connection_strings": _to_clean_dict(getattr(adb, "connection_strings", {})),
-        })
-    return items
+# @mcp.tool()
+# def list_autonomous_databases(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
+#     """List Autonomous Databases in a compartment (defaults to tenancy)."""
+#     comp = compartment_ocid or _default_compartment()
+#     assert comp, "No compartment OCID available"
+#     db = oci_manager.get_client("database")
+#     items = []
+#     for adb in oci.pagination.list_call_get_all_results(
+#         db.list_autonomous_databases, compartment_id=comp
+#     ).data:
+#         items.append({
+#             "id": adb.id,
+#             "db_name": adb.db_name,
+#             "display_name": adb.display_name,
+#             "lifecycle_state": adb.lifecycle_state,
+#             "db_workload": adb.db_workload,
+#             "cpu_core_count": getattr(adb, "cpu_core_count", None),
+#             "data_storage_size_in_tbs": getattr(adb, "data_storage_size_in_tbs", None),
+#             "is_auto_scaling_enabled": getattr(adb, "is_auto_scaling_enabled", None),
+#             "connection_strings": _to_clean_dict(getattr(adb, "connection_strings", {})),
+#         })
+#     return items
 
 
-@mcp.tool()
-def list_db_systems(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
-    """List DB Systems (Bare Metal and Virtual Machine databases) in a compartment (defaults to tenancy)."""
-    comp = compartment_ocid or _default_compartment()
-    assert comp, "No compartment OCID available"
-    db = oci_manager.get_client("database")
-    items = []
-    for dbs in oci.pagination.list_call_get_all_results(
-        db.list_db_systems, compartment_id=comp
-    ).data:
-        items.append({
-            "id": dbs.id,
-            "display_name": dbs.display_name,
-            "lifecycle_state": dbs.lifecycle_state,
-            "shape": dbs.shape,
-            "database_edition": getattr(dbs, "database_edition", None),
-            "hostname": getattr(dbs, "hostname", None),
-            "domain": getattr(dbs, "domain", None),
-            "cpu_core_count": getattr(dbs, "cpu_core_count", None),
-            "node_count": getattr(dbs, "node_count", None),
-            "time_created": dbs.time_created.isoformat() if dbs.time_created else None,
-        })
-    return items
+# @mcp.tool()
+# def list_db_systems(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
+#     """List DB Systems (Bare Metal and Virtual Machine databases) in a compartment (defaults to tenancy)."""
+#     comp = compartment_ocid or _default_compartment()
+#     assert comp, "No compartment OCID available"
+#     db = oci_manager.get_client("database")
+#     items = []
+#     for dbs in oci.pagination.list_call_get_all_results(
+#         db.list_db_systems, compartment_id=comp
+#     ).data:
+#         items.append({
+#             "id": dbs.id,
+#             "display_name": dbs.display_name,
+#             "lifecycle_state": dbs.lifecycle_state,
+#             "shape": dbs.shape,
+#             "database_edition": getattr(dbs, "database_edition", None),
+#             "hostname": getattr(dbs, "hostname", None),
+#             "domain": getattr(dbs, "domain", None),
+#             "cpu_core_count": getattr(dbs, "cpu_core_count", None),
+#             "node_count": getattr(dbs, "node_count", None),
+#             "time_created": dbs.time_created.isoformat() if dbs.time_created else None,
+#         })
+#     return items
 
 
-@mcp.tool()
-def list_storage_buckets(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
-    """List Object Storage buckets in the configured region for the given compartment."""
-    comp = compartment_ocid or _default_compartment()
-    assert comp, "No compartment OCID available"
-    osvc = oci_manager.get_client("object_storage")
-    namespace = osvc.get_namespace().data
-    buckets = oci.pagination.list_call_get_all_results(
-        osvc.list_buckets, namespace_name=namespace, compartment_id=comp
-    ).data
-    return [{"name": b.name, "created": b.time_created.isoformat(), "namespace": namespace} for b in buckets]
+# @mcp.tool()
+# def list_storage_buckets(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
+#     """List Object Storage buckets in the configured region for the given compartment."""
+#     comp = compartment_ocid or _default_compartment()
+#     assert comp, "No compartment OCID available"
+#     osvc = oci_manager.get_client("object_storage")
+#     namespace = osvc.get_namespace().data
+#     buckets = oci.pagination.list_call_get_all_results(
+#         osvc.list_buckets, namespace_name=namespace, compartment_id=comp
+#     ).data
+#     return [{"name": b.name, "created": b.time_created.isoformat(), "namespace": namespace} for b in buckets]
 
 
 @mcp.tool()
