@@ -14,7 +14,7 @@ import os
 import json
 import logging
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -566,66 +566,92 @@ def instance_action(instance_id: str, action: str) -> Dict[str, Any]:
     return {"status": resp.status, "headers": dict(resp.headers)}
 
 
-# @mcp.tool()
-# def list_autonomous_databases(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
-#     """List Autonomous Databases in a compartment (defaults to tenancy)."""
-#     comp = compartment_ocid or _default_compartment()
-#     assert comp, "No compartment OCID available"
-#     db = oci_manager.get_client("database")
-#     items = []
-#     for adb in oci.pagination.list_call_get_all_results(
-#         db.list_autonomous_databases, compartment_id=comp
-#     ).data:
-#         items.append({
-#             "id": adb.id,
-#             "db_name": adb.db_name,
-#             "display_name": adb.display_name,
-#             "lifecycle_state": adb.lifecycle_state,
-#             "db_workload": adb.db_workload,
-#             "cpu_core_count": getattr(adb, "cpu_core_count", None),
-#             "data_storage_size_in_tbs": getattr(adb, "data_storage_size_in_tbs", None),
-#             "is_auto_scaling_enabled": getattr(adb, "is_auto_scaling_enabled", None),
-#             "connection_strings": _to_clean_dict(getattr(adb, "connection_strings", {})),
-#         })
-#     return items
+@mcp.tool()
+def list_autonomous_databases(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List Autonomous Databases in a compartment (defaults to tenancy)."""
+    comp = compartment_ocid or _default_compartment()
+    assert comp, "No compartment OCID available"
+    db = oci_manager.get_client("database")
+    items = []
+    for adb in oci.pagination.list_call_get_all_results(
+        db.list_autonomous_databases, compartment_id=comp
+    ).data:
+        items.append({
+            "id": adb.id,
+            "db_name": adb.db_name,
+            "display_name": adb.display_name,
+            "lifecycle_state": adb.lifecycle_state,
+            "db_workload": adb.db_workload,
+            "cpu_core_count": getattr(adb, "cpu_core_count", None),
+            "data_storage_size_in_tbs": getattr(adb, "data_storage_size_in_tbs", None),
+            "is_auto_scaling_enabled": getattr(adb, "is_auto_scaling_enabled", None),
+            "connection_strings": _to_clean_dict(getattr(adb, "connection_strings", {})),
+        })
+    return items
 
 
-# @mcp.tool()
-# def list_db_systems(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
-#     """List DB Systems (Bare Metal and Virtual Machine databases) in a compartment (defaults to tenancy)."""
-#     comp = compartment_ocid or _default_compartment()
-#     assert comp, "No compartment OCID available"
-#     db = oci_manager.get_client("database")
-#     items = []
-#     for dbs in oci.pagination.list_call_get_all_results(
-#         db.list_db_systems, compartment_id=comp
-#     ).data:
-#         items.append({
-#             "id": dbs.id,
-#             "display_name": dbs.display_name,
-#             "lifecycle_state": dbs.lifecycle_state,
-#             "shape": dbs.shape,
-#             "database_edition": getattr(dbs, "database_edition", None),
-#             "hostname": getattr(dbs, "hostname", None),
-#             "domain": getattr(dbs, "domain", None),
-#             "cpu_core_count": getattr(dbs, "cpu_core_count", None),
-#             "node_count": getattr(dbs, "node_count", None),
-#             "time_created": dbs.time_created.isoformat() if dbs.time_created else None,
-#         })
-#     return items
+@mcp.tool()
+def list_db_systems(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List DB Systems (Bare Metal and Virtual Machine databases) in a compartment (defaults to tenancy)."""
+    comp = compartment_ocid or _default_compartment()
+    assert comp, "No compartment OCID available"
+    db = oci_manager.get_client("database")
+    items = []
+    for dbs in oci.pagination.list_call_get_all_results(
+        db.list_db_systems, compartment_id=comp
+    ).data:
+        items.append({
+            "id": dbs.id,
+            "display_name": dbs.display_name,
+            "lifecycle_state": dbs.lifecycle_state,
+            "shape": dbs.shape,
+            "database_edition": getattr(dbs, "database_edition", None),
+            "hostname": getattr(dbs, "hostname", None),
+            "domain": getattr(dbs, "domain", None),
+            "cpu_core_count": getattr(dbs, "cpu_core_count", None),
+            "node_count": getattr(dbs, "node_count", None),
+            "time_created": dbs.time_created.isoformat() if dbs.time_created else None,
+            "freeform_tags": _to_clean_dict(getattr(dbs, "freeform_tags", {})),
+            "defined_tags": _to_clean_dict(getattr(dbs, "defined_tags", {})),
+        })
+    return items
+
+@mcp.tool()
+def get_db_system_details(db_system_id: str) -> Dict[str, Any]:
+    """Get detailed information for a DB System, including tags and ownership information.
+    Args:
+        db_system_id: The OCID of the DB System
+    """
+    db = oci_manager.get_client("database")
+    dbs = db.get_db_system(db_system_id).data
+    return {
+        "id": dbs.id,
+        "display_name": dbs.display_name,
+        "lifecycle_state": dbs.lifecycle_state,
+        "shape": dbs.shape,
+        "database_edition": getattr(dbs, "database_edition", None),
+        "hostname": getattr(dbs, "hostname", None),
+        "domain": getattr(dbs, "domain", None),
+        "cpu_core_count": getattr(dbs, "cpu_core_count", None),
+        "node_count": getattr(dbs, "node_count", None),
+        "time_created": dbs.time_created.isoformat() if dbs.time_created else None,
+        "freeform_tags": _to_clean_dict(getattr(dbs, "freeform_tags", {})),
+        "defined_tags": _to_clean_dict(getattr(dbs, "defined_tags", {})),
+        "compartment_id": dbs.compartment_id,
+    }
 
 
-# @mcp.tool()
-# def list_storage_buckets(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
-#     """List Object Storage buckets in the configured region for the given compartment."""
-#     comp = compartment_ocid or _default_compartment()
-#     assert comp, "No compartment OCID available"
-#     osvc = oci_manager.get_client("object_storage")
-#     namespace = osvc.get_namespace().data
-#     buckets = oci.pagination.list_call_get_all_results(
-#         osvc.list_buckets, namespace_name=namespace, compartment_id=comp
-#     ).data
-#     return [{"name": b.name, "created": b.time_created.isoformat(), "namespace": namespace} for b in buckets]
+@mcp.tool()
+def list_storage_buckets(compartment_ocid: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List Object Storage buckets in the configured region for the given compartment."""
+    comp = compartment_ocid or _default_compartment()
+    assert comp, "No compartment OCID available"
+    osvc = oci_manager.get_client("object_storage")
+    namespace = osvc.get_namespace().data
+    buckets = oci.pagination.list_call_get_all_results(
+        osvc.list_buckets, namespace_name=namespace, compartment_id=comp
+    ).data
+    return [{"name": b.name, "created": b.time_created.isoformat(), "namespace": namespace} for b in buckets]
 
 
 @mcp.tool()
@@ -690,6 +716,7 @@ def get_tenancy_cost_summary(start_time_iso: Optional[str] = None,
                              granularity: str = "DAILY") -> Dict[str, Any]:
     """Summarize tenancy costs using Usage API (requires permissions).
     Args:
+        Start_time_iso and end_time_iso should be in the format of YYYY-MM-DDTHH:MM:SSZ
         start_time_iso: ISO8601 start (defaults: now-7d)
         end_time_iso: ISO8601 end (defaults: now)
         granularity: DAILY or MONTHLY
@@ -699,180 +726,224 @@ def get_tenancy_cost_summary(start_time_iso: Optional[str] = None,
     except Exception as e:
         raise RuntimeError("Usage API not available; upgrade OCI SDK and permissions.") from e
 
-    if not end_time_iso:
-        end = datetime.now(timezone.utc)
+    # Parse end_time_iso
+    if not end_time_iso or (isinstance(end_time_iso, str) and end_time_iso.strip() == ""):
+        end_dt = datetime.now(timezone.utc)
+        end = date(end_dt.year, end_dt.month, end_dt.day)
     else:
-        end = datetime.fromisoformat(end_time_iso.replace("Z",""))
-    if not start_time_iso:
-        start = end - timedelta(days=7)
+        try:
+            end_time_str = str(end_time_iso).strip()
+            # Normalize 'Z' to '+00:00' for fromisoformat
+            if end_time_str.endswith("Z"):
+                end_time_str = end_time_str[:-1] + "+00:00"
+            elif "T" in end_time_str and "+" not in end_time_str and not end_time_str.endswith("Z"):
+                # If it has T but no timezone, assume UTC
+                end_time_str = end_time_str + "+00:00"
+            
+            # Parse as datetime or date
+            if "T" in end_time_str:
+                end_dt = datetime.fromisoformat(end_time_str)
+                end = date(end_dt.year, end_dt.month, end_dt.day)
+            else:
+                # Date-only format (YYYY-MM-DD)
+                end = date.fromisoformat(end_time_str)
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"Invalid end_time_iso format: '{end_time_iso}'. Expected ISO8601 format (e.g., '2025-11-28T00:00:00Z' or '2025-11-28'). Error: {e}") from e
+    
+    # Parse start_time_iso
+    if not start_time_iso or (isinstance(start_time_iso, str) and start_time_iso.strip() == ""):
+        start_dt = datetime.now(timezone.utc) - timedelta(days=7)
+        start = date(start_dt.year, start_dt.month, start_dt.day)
     else:
-        start = datetime.fromisoformat(start_time_iso.replace("Z",""))
+        try:
+            start_time_str = str(start_time_iso).strip()
+            # Normalize 'Z' to '+00:00' for fromisoformat
+            if start_time_str.endswith("Z"):
+                start_time_str = start_time_str[:-1] + "+00:00"
+            elif "T" in start_time_str and "+" not in start_time_str and not start_time_str.endswith("Z"):
+                # If it has T but no timezone, assume UTC
+                start_time_str = start_time_str + "+00:00"
+            
+            # Parse as datetime or date
+            if "T" in start_time_str:
+                start_dt = datetime.fromisoformat(start_time_str)
+                start = date(start_dt.year, start_dt.month, start_dt.day)
+            else:
+                # Date-only format (YYYY-MM-DD)
+                start = date.fromisoformat(start_time_str)
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"Invalid start_time_iso format: '{start_time_iso}'. Expected ISO8601 format (e.g., '2025-11-21T00:00:00Z' or '2025-11-21'). Error: {e}") from e
 
     tenant_id = oci_manager.config["tenancy"]
+    # Convert date objects to datetime with time 00:00:00.000Z
+    start_dt = datetime.combine(start, datetime.min.time()).replace(tzinfo=timezone.utc)
+    end_dt = datetime.combine(end, datetime.min.time()).replace(tzinfo=timezone.utc)
     details = oci.usage_api.models.RequestSummarizedUsagesDetails(
         tenant_id=tenant_id,
-        time_usage_started=start,
-        time_usage_ended=end,
+        time_usage_started=start_dt,
+        time_usage_ended=end_dt,
         granularity=granularity,
         query_type="COST",
         group_by=["service"],
         # forecast=oci.usage_api.models.Forecast(),
     )
+
+    print ("details: ", details)
     resp = usage.request_summarized_usages(request_summarized_usages_details=details)
     rows = [to_dict(x) for x in resp.data.items] if getattr(resp.data, "items", None) else []
     total = sum((r.get("computed_amount", 0) or 0) for r in rows)
-    return {"start": start.isoformat()+"Z", "end": end.isoformat()+"Z", "granularity": granularity, "total_computed_amount": total, "items": rows}
+    return {"start": start.isoformat(), "end": end.isoformat(), "granularity": granularity, "total_computed_amount": total, "items": rows}
 
 
-@mcp.tool()
-def get_resource_audit_events(resource_ocid: str,
-                               days_back: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Get historic actions (audit events) for a specific OCI resource.
-    Only returns write operations: PUT, POST, PATCH, DELETE.
-    Uses OCI Logging Search API to query audit logs.
+# @mcp.tool()
+# def get_resource_audit_events(resource_ocid: str,
+#                                days_back: Optional[int] = None) -> List[Dict[str, Any]]:
+#     """Get historic actions (audit events) for a specific OCI resource.
+#     Only returns write operations: PUT, POST, PATCH, DELETE.
+#     Uses OCI Logging Search API to query audit logs.
     
-    IMPORTANT: The OCI Logging Search API has a maximum time range limit of 14 days.
-    If days_back exceeds 14, it will be automatically capped at 14 days.
+#     IMPORTANT: The OCI Logging Search API has a maximum time range limit of 14 days.
+#     If days_back exceeds 14, it will be automatically capped at 14 days.
     
-    Args:
-        resource_ocid: The OCID of the resource to query audit events for
-        days_back: Number of days back in history to search (defaults to 14, maximum is 14)
-    Returns:
-        List of audit events with event details (eventTime, eventName, requestAction, principalId, etc.)
-    """
-    try:
-        log_search_client = oci_manager.get_client("logging_search")
-    except Exception as e:
-        raise RuntimeError("Logging Search service not available; check OCI SDK version and permissions.") from e
+#     Args:
+#         resource_ocid: The OCID of the resource to query audit events for
+#         days_back: Number of days back in history to search (defaults to 14, maximum is 14)
+#     Returns:
+#         List of audit events with event details (eventTime, eventName, requestAction, principalId, etc.)
+#     """
+#     try:
+#         log_search_client = oci_manager.get_client("logging_search")
+#     except Exception as e:
+#         raise RuntimeError("Logging Search service not available; check OCI SDK version and permissions.") from e
 
-    # Find the resource's compartment OCID using structured search
-    try:
-        search_client = oci_manager.get_client("resource_search")
+#     # Find the resource's compartment OCID using structured search
+#     try:
+#         search_client = oci_manager.get_client("resource_search")
         
-        # Extract resource type from OCID (format: ocid1.<resource_type>.<region>...)
-        # Example: ocid1.instance.oc1.eu-frankfurt-1... -> resource_type = "instance"
-        ocid_parts = resource_ocid.split(".")
-        if len(ocid_parts) < 2:
-            raise ValueError(f"Invalid OCID format: {resource_ocid}")
+#         # Extract resource type from OCID (format: ocid1.<resource_type>.<region>...)
+#         # Example: ocid1.instance.oc1.eu-frankfurt-1... -> resource_type = "instance"
+#         ocid_parts = resource_ocid.split(".")
+#         if len(ocid_parts) < 2:
+#             raise ValueError(f"Invalid OCID format: {resource_ocid}")
         
-        resource_type = ocid_parts[1]  # Second part is the resource type
+#         resource_type = ocid_parts[1]  # Second part is the resource type
         
-        # Search for resources of this type
-        structured_query = f"query {resource_type} resources return allAdditionalFields"
-        search_details = oci.resource_search.models.StructuredSearchDetails(
-            query=structured_query,
-            type="Structured"
-        )
-        search_results = oci.pagination.list_call_get_all_results(
-            search_client.search_resources,
-            search_details
-        ).data
+#         # Search for resources of this type
+#         structured_query = f"query {resource_type} resources return allAdditionalFields"
+#         search_details = oci.resource_search.models.StructuredSearchDetails(
+#             query=structured_query,
+#             type="Structured"
+#         )
+#         search_results = oci.pagination.list_call_get_all_results(
+#             search_client.search_resources,
+#             search_details
+#         ).data
         
-        # Filter results to find the exact resource by identifier
-        matching_resource = None
-        for result in search_results:
-            resource_data = _to_clean_dict(result)
-            resource_id = resource_data.get("identifier") or resource_data.get("id")
-            if resource_id == resource_ocid:
-                matching_resource = resource_data
-                break
+#         # Filter results to find the exact resource by identifier
+#         matching_resource = None
+#         for result in search_results:
+#             resource_data = _to_clean_dict(result)
+#             resource_id = resource_data.get("identifier") or resource_data.get("id")
+#             if resource_id == resource_ocid:
+#                 matching_resource = resource_data
+#                 break
         
-        if not matching_resource:
-            raise ValueError(f"Resource with OCID {resource_ocid} not found")
+#         if not matching_resource:
+#             raise ValueError(f"Resource with OCID {resource_ocid} not found")
         
-        # Get compartment_id from the matching resource
-        comp = matching_resource.get("compartment_id") or matching_resource.get("compartmentId")
+#         # Get compartment_id from the matching resource
+#         comp = matching_resource.get("compartment_id") or matching_resource.get("compartmentId")
         
-        if not comp:
-            raise ValueError(f"Could not determine compartment OCID for resource {resource_ocid}")
+#         if not comp:
+#             raise ValueError(f"Could not determine compartment OCID for resource {resource_ocid}")
         
-        log.info(f"Found resource in compartment {comp}")
+#         log.info(f"Found resource in compartment {comp}")
         
-    except Exception as e:
-        raise RuntimeError(f"Failed to find resource {resource_ocid} using structured search: {e}") from e
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to find resource {resource_ocid} using structured search: {e}") from e
 
-    # Enforce 14-day maximum limit for OCI Logging Search API
-    MAX_SEARCH_DAYS = 14
+#     # Enforce 14-day maximum limit for OCI Logging Search API
+#     MAX_SEARCH_DAYS = 14
     
-    # Set default to 14 days if not specified, and ensure it never exceeds 14
-    if days_back is None:
-        days_back = MAX_SEARCH_DAYS
-    elif days_back > MAX_SEARCH_DAYS:
-        log.warning(
-            f"Requested days_back ({days_back}) exceeds OCI Logging Search API limit "
-            f"of {MAX_SEARCH_DAYS} days. Capping to {MAX_SEARCH_DAYS} days."
-        )
-        days_back = MAX_SEARCH_DAYS
+#     # Set default to 14 days if not specified, and ensure it never exceeds 14
+#     if days_back is None:
+#         days_back = MAX_SEARCH_DAYS
+#     elif days_back > MAX_SEARCH_DAYS:
+#         log.warning(
+#             f"Requested days_back ({days_back}) exceeds OCI Logging Search API limit "
+#             f"of {MAX_SEARCH_DAYS} days. Capping to {MAX_SEARCH_DAYS} days."
+#         )
+#         days_back = MAX_SEARCH_DAYS
     
-    # Calculate start and end times automatically
-    end = datetime.now(timezone.utc)
-    start = end - timedelta(days=days_back)
+#     # Calculate start and end times automatically
+#     end = datetime.now(timezone.utc)
+#     start = end - timedelta(days=days_back)
     
-    # Build search query to filter by resource OCID and HTTP methods
-    # OCI Logging Search query format: search "compartment_ocid/_Audit" | filter conditions | sort
-    write_methods = ["POST", "PUT", "PATCH", "DELETE"]
+#     # Build search query to filter by resource OCID and HTTP methods
+#     # OCI Logging Search query format: search "compartment_ocid/_Audit" | filter conditions | sort
+#     write_methods = ["POST", "PUT", "PATCH", "DELETE"]
     
-    # Build the action filter: (data.request.action='POST' or data.request.action='PUT' or ...)
-    action_filters = " or ".join([f"data.request.action='{method}'" for method in write_methods])
+#     # Build the action filter: (data.request.action='POST' or data.request.action='PUT' or ...)
+#     action_filters = " or ".join([f"data.request.action='{method}'" for method in write_methods])
     
-    # Construct the search query matching the OCI Logging Search format
-    # Search in compartment audit logs, filter by action type and resource OCID in logContent
-    search_query = f'search "{comp}/_Audit" | ({action_filters}) and (logContent=\'*{resource_ocid}*\') | sort by datetime desc'
+#     # Construct the search query matching the OCI Logging Search format
+#     # Search in compartment audit logs, filter by action type and resource OCID in logContent
+#     search_query = f'search "{comp}/_Audit" | ({action_filters}) and (logContent=\'*{resource_ocid}*\') | sort by datetime desc'
     
-    events = []
+#     events = []
     
-    try:
-        # Create SearchLogsDetails object
-        search_details = oci.loggingsearch.models.SearchLogsDetails(
-            time_start=start,
-            time_end=end,
-            search_query=search_query
-        )
+#     try:
+#         # Create SearchLogsDetails object
+#         search_details = oci.loggingsearch.models.SearchLogsDetails(
+#             time_start=start,
+#             time_end=end,
+#             search_query=search_query
+#         )
         
-        # Execute the search using LogSearchClient
-        response = log_search_client.search_logs(search_details)
+#         # Execute the search using LogSearchClient
+#         response = log_search_client.search_logs(search_details)
         
-        # Process the results
-        if hasattr(response.data, 'results') and response.data.results:
-            for result in response.data.results:
-                if hasattr(result, 'data'):
-                    event_data = _to_clean_dict(result.data)
-                    # Ensure resource_ocid is included
-                    event_data["resource_id"] = resource_ocid
-                    # Extract HTTP method from requestAction if available
-                    request_action = event_data.get("requestAction", "") or event_data.get("request_action", "")
-                    if request_action:
-                        method = request_action.split()[0] if request_action else ""
-                        event_data["http_method"] = method
-                    events.append(event_data)
+#         # Process the results
+#         if hasattr(response.data, 'results') and response.data.results:
+#             for result in response.data.results:
+#                 if hasattr(result, 'data'):
+#                     event_data = _to_clean_dict(result.data)
+#                     # Ensure resource_ocid is included
+#                     event_data["resource_id"] = resource_ocid
+#                     # Extract HTTP method from requestAction if available
+#                     request_action = event_data.get("requestAction", "") or event_data.get("request_action", "")
+#                     if request_action:
+#                         method = request_action.split()[0] if request_action else ""
+#                         event_data["http_method"] = method
+#                     events.append(event_data)
         
-    except Exception as e:
-        raise RuntimeError(f"Failed to query audit events for resource {resource_ocid}: {e}") from e
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to query audit events for resource {resource_ocid}: {e}") from e
 
-    # Sort by event time (most recent first)
-    def get_event_time(event):
-        time_fields = ["event_time", "eventTime", "time", "timestamp"]
-        for field in time_fields:
-            if field in event:
-                val = event[field]
-                if isinstance(val, datetime):
-                    return val
-                elif isinstance(val, str):
-                    try:
-                        return datetime.fromisoformat(val.replace("Z", "+00:00"))
-                    except:
-                        return datetime.min
-        return datetime.min
+#     # Sort by event time (most recent first)
+#     def get_event_time(event):
+#         time_fields = ["event_time", "eventTime", "time", "timestamp"]
+#         for field in time_fields:
+#             if field in event:
+#                 val = event[field]
+#                 if isinstance(val, datetime):
+#                     return val
+#                 elif isinstance(val, str):
+#                     try:
+#                         return datetime.fromisoformat(val.replace("Z", "+00:00"))
+#                     except:
+#                         return datetime.min
+#         return datetime.min
     
-    events.sort(key=get_event_time, reverse=True)
+#     events.sort(key=get_event_time, reverse=True)
     
-    # Convert datetime objects to ISO strings for JSON serialization
-    for event in events:
-        for key, val in event.items():
-            if isinstance(val, datetime):
-                event[key] = val.isoformat()
+#     # Convert datetime objects to ISO strings for JSON serialization
+#     for event in events:
+#         for key, val in event.items():
+#             if isinstance(val, datetime):
+#                 event[key] = val.isoformat()
     
-    return events
+#     return events
 
 
 # ----------- Resources -----------
